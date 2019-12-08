@@ -130,17 +130,23 @@ public class EnumCheckGoal extends AbstractMojo {
             } else {
                 // 如果是java类文件 去掉后面的.class 只留下类名
                 String className = file.getName().substring(0, file.getName().length() - 6);
+                String path = file.getAbsolutePath();
                 try {
                     // 添加到集合中去 这里用forName有一些不好，会触发static方法，没有使用classLoader的load干净
-                    String path = file.getAbsolutePath();
-                    String packageName = path.substring(path.indexOf("target/classes") + 15, path.lastIndexOf("/"));
+                    String packageName = "";
+                    int start = path.indexOf("target/classes") + 15;
+                    int end = path.lastIndexOf("/");
+                    // 如果end <= start 则表明，类包路径是空
+                    if (end > start) {
+                        packageName = path.substring(start, end);
+                    }
                     packageName = packageName.replace("/", ".");
                     getLog().info("packageName+className => " + packageName + '.' + className);
                     Class<?> clazz = classLoader.loadClass(packageName + '.' + className);
                     getLog().info("clazz is => " + clazz);
                     classes.add(clazz);
                 } catch (Exception e) {
-                    getLog().error("EnumCheckGoal error：", e);
+                    getLog().error(String.format("EnumCheckGoal className:%s,path:%s,error：", className, path), e);
                     throw new RuntimeException(e);
                 }
             }

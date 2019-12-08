@@ -41,13 +41,6 @@
                 <groupId>com.dk.plugin.maven</groupId>
                 <artifactId>enum-check</artifactId>
                 <version>1.0-SNAPSHOT</version>
-                <configuration>
-                    <msg>This is my message</msg>
-                    <options>
-                        <option>one Array</option>
-                        <option>two Array</option>
-                    </options>
-                </configuration>
                 <executions>
                     <execution>
                         <id>enum-check</id>
