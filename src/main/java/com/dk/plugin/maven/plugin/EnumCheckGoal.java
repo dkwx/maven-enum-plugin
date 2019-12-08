@@ -8,50 +8,22 @@ import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 
 import java.io.File;
-import java.io.FileFilter;
+import java.lang.reflect.Field;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.net.URLDecoder;
 import java.util.Enumeration;
 import java.util.HashSet;
-import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * @author : kai.dai
  * @date : 2019-12-07 23:27
  */
 @Mojo(name = "enum-check-goal", defaultPhase = LifecyclePhase.PACKAGE)
-public class DemoMojo extends AbstractMojo {
-
-    @Parameter
-    private String msg;
-
-    @Parameter
-    private List<String> options;
-
-    @Parameter(property = "args")
-    private String args;
-
-    @Parameter(
-            defaultValue = "${project.build.sourceDirectory}",
-            property = "sourceDirectory",
-            required = true
-    )
-    private File sourceDirectory;
-
-    @Parameter(
-            defaultValue = "${project.build.directory}",
-            property = "directory",
-            required = true
-    )
-    private File directory;
-    @Parameter(
-            defaultValue = "${project.build.outputDirectory}",
-            property = "outputDirectory",
-            required = true
-    )
-    private File outputDirectory;
+public class EnumCheckGoal extends AbstractMojo {
 
     @Parameter(
             property = "classPath",
@@ -61,16 +33,9 @@ public class DemoMojo extends AbstractMojo {
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
-        System.out.println("------12312-312-312-312-----");
-        System.out.println("msg++++" + msg);
-        System.out.println(options);
-        System.out.println(args);
-        System.out.println(null == sourceDirectory ? null : sourceDirectory.getAbsolutePath());
-        System.out.println(null == directory ? null : directory.getAbsolutePath());
-        System.out.println(null == outputDirectory ? null : outputDirectory.getAbsolutePath());
-        System.out.println("------12312-312-312-312-----");
-        Set<Class> sets = new HashSet<>();
 
+        getLog().info("------enum-check-goal-start-----");
+        Set<Class> classes = new LinkedHashSet<>();
         try {
             URL[] urls = new URL[1];
             urls[0] = new URL("file:" + classPath);
@@ -83,13 +48,51 @@ public class DemoMojo extends AbstractMojo {
                     // 获取包的物理路径
                     String packagePath = URLDecoder.decode(url.getFile(), "UTF-8");
                     // 以文件的方式扫描整个包下的文件 并添加到集合中
-                    findAndAddClassesInPackageByFile(packagePath, sets, urlClassLoader);
+                    findAndAddClassesInPackageByFile(packagePath, classes, urlClassLoader);
+
                 }
             }
+            Set<Class> errorClass = new LinkedHashSet<>();
+            // 从集合中取出判断是否是枚举，是否唯一
+            for (Class<?> clazz : classes) {
+                if (!clazz.isEnum()) {
+                    return;
+                }
+                if (isEnumNotSuitRule(clazz)) {
+                    errorClass.add(clazz);
+                }
+            }
+            if (errorClass.size() > 0) {
+                throw new MojoFailureException("存在没通过唯一性校验的枚举:" + errorClass.stream().map(z -> z.getName()).collect(Collectors.joining("\n")));
+            }
         } catch (Exception e) {
-            getLog().error("DemoMojo log输出：" + e);
+            getLog().error("EnumCheckGoal error：", e);
             throw new MojoFailureException(e.getMessage());
         }
+    }
+
+    private boolean isEnumNotSuitRule(Class<?> clazz) {
+        Class<Enum> enumClass = (Class<Enum>) clazz;
+        Field[] fields = enumClass.getFields();
+        Enum[] constants = enumClass.getEnumConstants();
+        if (null == constants || constants.length == 0 || null == fields || fields.length == 0) {
+            return false;
+        }
+        Set<Object> uniqSet = new HashSet<>();
+        Field field = fields[0];
+        for (Enum m : constants) {
+            try {
+                Object obj = field.get(m);
+                if (uniqSet.contains(obj)) {
+                    return true;
+                } else {
+                    uniqSet.add(obj);
+                }
+            } catch (IllegalAccessException e) {
+                e.printStackTrace();
+            }
+        }
+        return false;
     }
 
     private void findAndAddClassesInPackageByFile(String packagePath, Set<Class> classes, URLClassLoader classLoader) {
@@ -101,15 +104,15 @@ public class DemoMojo extends AbstractMojo {
             return;
         }
         // 如果存在 就获取包下的所有文件 包括目录
-        File[] dirfiles = dir.listFiles(new FileFilter() {
-            // 自定义过滤规则 如果可以循环(包含子目录) 或则是以.class结尾的文件(编译好的java类文件)
-            @Override
-            public boolean accept(File file) {
-                return (file.isDirectory()) || (file.getName().endsWith(".class"));
-            }
-        });
+        File[] dirFiles = dir.listFiles((file) ->
+                // 自定义过滤规则 如果可以循环(包含子目录) 或则是以.class结尾的文件(编译好的java类文件)
+                (file.isDirectory()) || (file.getName().endsWith(".class"))
+        );
+        if (null == dirFiles || dirFiles.length == 0) {
+            return;
+        }
         // 循环所有文件
-        for (File file : dirfiles) {
+        for (File file : dirFiles) {
             // 如果是目录 则继续扫描
             if (file.isDirectory()) {
                 findAndAddClassesInPackageByFile(file.getAbsolutePath(),
@@ -119,22 +122,16 @@ public class DemoMojo extends AbstractMojo {
                 String className = file.getName().substring(0, file.getName().length() - 6);
                 try {
                     // 添加到集合中去 这里用forName有一些不好，会触发static方法，没有使用classLoader的load干净
-                    // classes.add(Class.forName(packageName + '.' + className));
                     String path = file.getAbsolutePath();
                     String packageName = path.substring(path.indexOf("target/classes") + 15, path.lastIndexOf("/"));
                     packageName = packageName.replace("/", ".");
-                    System.out.println("packageName+className => " + packageName + '.' + className);
-//                    Class<?> clazz = Thread.currentThread().getContextClassLoader().loadClass(packageName + '.' + className);
+                    getLog().info("packageName+className => " + packageName + '.' + className);
                     Class<?> clazz = classLoader.loadClass(packageName + '.' + className);
-                    System.out.println("clazz is => " + clazz);
-                    // if (clazz.isEnum() && isDicClass(clazz)) {
-                    //     dicClassesRealPath.add(file.getAbsolutePath());
-                    //     // 获得枚举类详细信息
-                    //     dicInformation.add(enumInformation(clazz));
-                    // }
+                    getLog().info("clazz is => " + clazz);
                     classes.add(clazz);
                 } catch (Exception e) {
-                    getLog().error("DemoMojo log输出：load class failed", e);
+                    getLog().error("EnumCheckGoal error：", e);
+                    throw new RuntimeException(e);
                 }
             }
         }
