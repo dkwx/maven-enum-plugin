@@ -3,7 +3,11 @@ package com.dk.plugin.maven;
 
 public enum EnumDemo {
     Normal(2),
-    Error(2);
+    Error(2),
+    Error2(1),
+    Error3(1),
+    Error4(2),
+    ;
     private int code;
 
     EnumDemo(int code) {

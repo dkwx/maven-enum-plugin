@@ -33,14 +33,12 @@
                 </configuration>
             </plugin>
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-plugin-plugin</artifactId>
-                <version>3.4</version>
-            </plugin>
-            <plugin>
                 <groupId>com.dk.plugin.maven</groupId>
                 <artifactId>enum-check</artifactId>
                 <version>1.0-SNAPSHOT</version>
+                <configuration>
+                    <checkForce>true</checkForce>
+                </configuration>
                 <executions>
                     <execution>
                         <id>enum-check</id>

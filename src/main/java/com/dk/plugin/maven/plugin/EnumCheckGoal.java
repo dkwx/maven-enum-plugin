@@ -1,5 +1,8 @@
 package com.dk.plugin.maven.plugin;
 
+import com.dk.plugin.maven.plugin.model.CheckResponse;
+import com.dk.plugin.maven.plugin.model.CheckRule;
+
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
@@ -8,15 +11,17 @@ import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 
 import java.io.File;
+import java.io.FileFilter;
 import java.lang.reflect.Field;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.net.URLDecoder;
+import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * @author : kai.dai
@@ -30,6 +35,11 @@ public class EnumCheckGoal extends AbstractMojo {
             defaultValue = "${basedir}/target/classes/")
     private String classPath;
 
+
+    @Parameter(
+            property = "checkForce",
+            defaultValue = "true")
+    private boolean checkForce;
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
@@ -50,18 +60,20 @@ public class EnumCheckGoal extends AbstractMojo {
                     findAndAddClassesInPackageByFile(packagePath, classes, urlClassLoader);
                 }
             }
-            Set<Class> errorClass = new LinkedHashSet<>();
+            List<CheckResponse> checkResponseList = new ArrayList<>();
+            CheckRule checkRule = new CheckRule(checkForce);
             // 从集合中取出判断是否是枚举，是否唯一
             for (Class<?> clazz : classes) {
                 if (!clazz.isEnum()) {
                     continue;
                 }
-                if (isEnumNotSuitRule(clazz)) {
-                    errorClass.add(clazz);
+                CheckResponse response = isEnumNotSuitRule(clazz, checkRule);
+                if (null != response) {
+                    checkResponseList.add(response);
                 }
             }
-            if (errorClass.size() > 0) {
-                throw new MojoFailureException("存在没通过唯一性校验的枚举:" + errorClass.stream().map(z -> z.getName()).collect(Collectors.joining("\n")));
+            if (checkResponseList.size() > 0) {
+                soutResponse(checkResponseList, checkRule);
             }
         } catch (Exception e) {
             getLog().error("EnumCheckGoal error：", e);
@@ -69,12 +81,31 @@ public class EnumCheckGoal extends AbstractMojo {
         }
     }
 
-    private boolean isEnumNotSuitRule(Class<?> clazz) {
+    private void soutResponse(List<CheckResponse> checkResponseList, CheckRule checkRule) throws MojoFailureException {
+        if (null == checkResponseList || checkResponseList.size() == 0) {
+            return;
+        }
+        StringBuilder sb = new StringBuilder("存在没通过唯一性校验的枚举:\n");
+        // 不使用java8语法，否则各个插件都要升级
+        for (CheckResponse response : checkResponseList) {
+            sb.append("class:" + response.getErrClazz().getName());
+            sb.append(",consts:" + response.getEnumConstNames());
+            sb.append(",fields:" + response.getFieldNames());
+            sb.append("\n");
+        }
+        if (checkRule.isCheckForce()) {
+            throw new MojoFailureException(sb.toString());
+        } else {
+            getLog().warn(sb.toString());
+        }
+    }
+
+    private CheckResponse isEnumNotSuitRule(Class<?> clazz, CheckRule checkRule) {
         Class<Enum> enumClass = (Class<Enum>) clazz;
         Field[] fields = enumClass.getDeclaredFields();
         Enum[] constants = enumClass.getEnumConstants();
         if (null == constants || constants.length == 0 || null == fields || fields.length == 0) {
-            return false;
+            return null;
         }
         Set<Object> uniqSet = new HashSet<>();
         Field checkField = null;
@@ -86,16 +117,19 @@ public class EnumCheckGoal extends AbstractMojo {
         }
         if (null == checkField) {
             getLog().warn("找不到合适的比较Field");
-            return false;
+            return null;
         }
         // 设置访问可见性
         checkField.setAccessible(true);
-
+        boolean flag = false;
+        CheckResponse response = new CheckResponse(enumClass);
         for (Enum m : constants) {
             try {
                 Object obj = checkField.get(m);
                 if (uniqSet.contains(obj)) {
-                    return true;
+                    flag = true;
+                    response.addEnumConstName(m.name());
+                    response.addFieldName(checkField.getName());
                 } else {
                     uniqSet.add(obj);
                 }
@@ -103,7 +137,8 @@ public class EnumCheckGoal extends AbstractMojo {
                 e.printStackTrace();
             }
         }
-        return false;
+
+        return flag ? response : null;
     }
 
     private void findAndAddClassesInPackageByFile(String packagePath, Set<Class> classes, URLClassLoader classLoader) {
@@ -115,10 +150,13 @@ public class EnumCheckGoal extends AbstractMojo {
             return;
         }
         // 如果存在 就获取包下的所有文件 包括目录
-        File[] dirFiles = dir.listFiles((file) ->
-                // 自定义过滤规则 如果可以循环(包含子目录) 或则是以.class结尾的文件(编译好的java类文件)
-                (file.isDirectory()) || (file.getName().endsWith(".class"))
-        );
+        File[] dirFiles = dir.listFiles(new FileFilter() {
+            // 自定义过滤规则 如果可以循环(包含子目录) 或则是以.class结尾的文件(编译好的java类文件)
+            @Override
+            public boolean accept(File file) {
+                return (file.isDirectory()) || (file.getName().endsWith(".class"));
+            }
+        });
         if (null == dirFiles || dirFiles.length == 0) {
             return;
         }
