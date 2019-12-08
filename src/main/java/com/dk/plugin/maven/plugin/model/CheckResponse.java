@@ -21,6 +21,11 @@ public class CheckResponse {
      */
     Set<String> fieldNames = new LinkedHashSet<>();
 
+    /**
+     * 注解检查都是强校验
+     */
+    boolean checkAnnotation;
+
     public CheckResponse(Class errClazz) {
         this.errClazz = errClazz;
     }
@@ -49,5 +54,17 @@ public class CheckResponse {
 
     public void addFieldName(String name) {
         this.fieldNames.add(name);
+    }
+
+    public boolean isValid() {
+        return !fieldNames.isEmpty();
+    }
+
+    public boolean isCheckAnnotation() {
+        return checkAnnotation;
+    }
+
+    public void setCheckAnnotation(boolean checkAnnotation) {
+        this.checkAnnotation = checkAnnotation;
     }
 }

@@ -1,5 +1,6 @@
 package com.dk.plugin.maven.plugin;
 
+import com.dk.plugin.maven.plugin.annotation.EnumCheckCondition;
 import com.dk.plugin.maven.plugin.model.CheckResponse;
 import com.dk.plugin.maven.plugin.model.CheckRule;
 
@@ -17,6 +18,7 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.net.URLDecoder;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -37,9 +39,9 @@ public class EnumCheckGoal extends AbstractMojo {
 
 
     @Parameter(
-            property = "checkForce",
+            property = "checkForceForDefault",
             defaultValue = "true")
-    private boolean checkForce;
+    private boolean checkForceForDefault;
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
@@ -61,13 +63,13 @@ public class EnumCheckGoal extends AbstractMojo {
                 }
             }
             List<CheckResponse> checkResponseList = new ArrayList<>();
-            CheckRule checkRule = new CheckRule(checkForce);
+            CheckRule checkRule = new CheckRule(checkForceForDefault);
             // 从集合中取出判断是否是枚举，是否唯一
             for (Class<?> clazz : classes) {
                 if (!clazz.isEnum()) {
                     continue;
                 }
-                CheckResponse response = isEnumNotSuitRule(clazz, checkRule);
+                CheckResponse response = checkEnumClass(clazz);
                 if (null != response) {
                     checkResponseList.add(response);
                 }
@@ -85,51 +87,106 @@ public class EnumCheckGoal extends AbstractMojo {
         if (null == checkResponseList || checkResponseList.size() == 0) {
             return;
         }
-        StringBuilder sb = new StringBuilder("存在没通过唯一性校验的枚举:\n");
+
         // 不使用java8语法，否则各个插件都要升级
-        for (CheckResponse response : checkResponseList) {
-            sb.append("class:" + response.getErrClazz().getName());
-            sb.append(",consts:" + response.getEnumConstNames());
-            sb.append(",fields:" + response.getFieldNames());
-            sb.append("\n");
-        }
+        // 如果都强校验
         if (checkRule.isCheckForce()) {
+            StringBuilder sb = new StringBuilder("存在没通过唯一性校验的枚举:\n");
+            for (CheckResponse response : checkResponseList) {
+                // 格式化输出
+                formatSout(sb, response);
+            }
             throw new MojoFailureException(sb.toString());
         } else {
-            getLog().warn(sb.toString());
+            boolean warnFlag = false;
+            StringBuilder sbWarn = new StringBuilder("存在没通过唯一性校验的枚举:\n");
+            for (CheckResponse response : checkResponseList) {
+                if (!response.isCheckAnnotation()) {
+                    // 格式化输出
+                    formatSout(sbWarn, response);
+                    warnFlag = true;
+                }
+            }
+            if (warnFlag) {
+                getLog().warn(sbWarn.toString());
+            }
+            boolean errorFlag = false;
+            StringBuilder sbError = new StringBuilder("存在没通过实现校验注解的枚举:\n");
+            for (CheckResponse response : checkResponseList) {
+                if (response.isCheckAnnotation()) {
+                    // 格式化输出
+                    formatSout(sbError, response);
+                    errorFlag = true;
+                }
+            }
+            if (errorFlag) {
+                throw new MojoFailureException(sbError.toString());
+            }
+
         }
+
     }
 
-    private CheckResponse isEnumNotSuitRule(Class<?> clazz, CheckRule checkRule) {
+    private void formatSout(StringBuilder sbError, CheckResponse response) {
+        sbError.append("class:" + response.getErrClazz().getName());
+        sbError.append(",consts:" + response.getEnumConstNames());
+        sbError.append(",fields:" + response.getFieldNames());
+        sbError.append("\n");
+    }
+
+    /**
+     * 检查类
+     */
+    private CheckResponse checkEnumClass(Class<?> clazz) {
         Class<Enum> enumClass = (Class<Enum>) clazz;
         Field[] fields = enumClass.getDeclaredFields();
         Enum[] constants = enumClass.getEnumConstants();
         if (null == constants || constants.length == 0 || null == fields || fields.length == 0) {
             return null;
         }
-        Set<Object> uniqSet = new HashSet<>();
-        Field checkField = null;
-        for (Field field : fields) {
-            if (!field.getType().equals(enumClass)) {
-                checkField = field;
-                break;
+        List<Field> checkFields = new ArrayList<>();
+        CheckResponse response = new CheckResponse(enumClass);
+        // 判断是否实现了注解
+        if (enumClass.isAnnotationPresent(EnumCheckCondition.class)) {
+            response.setCheckAnnotation(true);
+            EnumCheckCondition condition = enumClass.getAnnotation(EnumCheckCondition.class);
+            List<String> uniqFieldList = Arrays.asList(condition.uniqFields());
+            for (Field field : fields) {
+                if (!field.getType().equals(enumClass) && uniqFieldList.contains(field.getName())) {
+                    checkFields.add(field);
+                }
             }
         }
-        if (null == checkField) {
-            getLog().warn("找不到合适的比较Field");
-            return null;
+
+        if (checkFields.isEmpty()) {
+            // 默认检查第一个
+            Field checkField = getFirstField(enumClass, fields);
+            if (null == checkField) {
+                return null;
+            }
+            checkFields.add(checkField);
         }
+
+
+        for (Field currentField : checkFields) {
+            checkEnumField(currentField, constants, response);
+        }
+        return response.isValid() ? response : null;
+    }
+
+    /**
+     * 检查属性
+     */
+    private void checkEnumField(Field currentField, Enum[] constants, CheckResponse response) {
+        Set<Object> uniqSet = new HashSet<>();
         // 设置访问可见性
-        checkField.setAccessible(true);
-        boolean flag = false;
-        CheckResponse response = new CheckResponse(enumClass);
+        currentField.setAccessible(true);
         for (Enum m : constants) {
             try {
-                Object obj = checkField.get(m);
+                Object obj = currentField.get(m);
                 if (uniqSet.contains(obj)) {
-                    flag = true;
                     response.addEnumConstName(m.name());
-                    response.addFieldName(checkField.getName());
+                    response.addFieldName(currentField.getName());
                 } else {
                     uniqSet.add(obj);
                 }
@@ -137,8 +194,17 @@ public class EnumCheckGoal extends AbstractMojo {
                 e.printStackTrace();
             }
         }
+    }
 
-        return flag ? response : null;
+    private Field getFirstField(Class<Enum> enumClass, Field[] fields) {
+        Field checkField = null;
+        for (Field field : fields) {
+            if (!field.getType().equals(enumClass)) {
+                checkField = field;
+                break;
+            }
+        }
+        return checkField;
     }
 
     private void findAndAddClassesInPackageByFile(String packagePath, Set<Class> classes, URLClassLoader classLoader) {
