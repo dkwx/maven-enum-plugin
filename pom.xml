@@ -37,27 +37,27 @@
                 <artifactId>maven-plugin-plugin</artifactId>
                 <version>3.4</version>
             </plugin>
-<!--            <plugin>-->
-<!--                <groupId>com.dk.plugin.maven</groupId>-->
-<!--                <artifactId>enum-check</artifactId>-->
-<!--                <version>1.0-SNAPSHOT</version>-->
-<!--                <configuration>-->
-<!--                    <msg>This is my message</msg>-->
-<!--                    <options>-->
-<!--                        <option>one Array</option>-->
-<!--                        <option>two Array</option>-->
-<!--                    </options>-->
-<!--                </configuration>-->
-<!--                <executions>-->
-<!--                    <execution>-->
-<!--                        <id>enum-check</id>-->
-<!--                        <phase>package</phase>-->
-<!--                        <goals>-->
-<!--                            <goal>enum-check-goal</goal>-->
-<!--                        </goals>-->
-<!--                    </execution>-->
-<!--                </executions>-->
-<!--            </plugin>-->
+            <plugin>
+                <groupId>com.dk.plugin.maven</groupId>
+                <artifactId>enum-check</artifactId>
+                <version>1.0-SNAPSHOT</version>
+                <configuration>
+                    <msg>This is my message</msg>
+                    <options>
+                        <option>one Array</option>
+                        <option>two Array</option>
+                    </options>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>enum-check</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>enum-check-goal</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 </project>

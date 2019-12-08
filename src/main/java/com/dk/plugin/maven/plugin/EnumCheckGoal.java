@@ -44,12 +44,10 @@ public class EnumCheckGoal extends AbstractMojo {
             while (dirs.hasMoreElements()) {
                 URL url = dirs.nextElement();
                 if ("file".equals(url.getProtocol())) {
-                    System.err.println("file类型的扫描");
                     // 获取包的物理路径
                     String packagePath = URLDecoder.decode(url.getFile(), "UTF-8");
                     // 以文件的方式扫描整个包下的文件 并添加到集合中
                     findAndAddClassesInPackageByFile(packagePath, classes, urlClassLoader);
-
                 }
             }
             Set<Class> errorClass = new LinkedHashSet<>();
@@ -73,16 +71,28 @@ public class EnumCheckGoal extends AbstractMojo {
 
     private boolean isEnumNotSuitRule(Class<?> clazz) {
         Class<Enum> enumClass = (Class<Enum>) clazz;
-        Field[] fields = enumClass.getFields();
+        Field[] fields = enumClass.getDeclaredFields();
         Enum[] constants = enumClass.getEnumConstants();
         if (null == constants || constants.length == 0 || null == fields || fields.length == 0) {
             return false;
         }
         Set<Object> uniqSet = new HashSet<>();
-        Field field = fields[0];
+        Field checkField = null;
+        for (Field field : fields) {
+            if (!field.getType().equals(enumClass)) {
+                checkField = field;
+                break;
+            }
+        }
+        if (null == checkField) {
+            getLog().warn("找不到合适的比较Field");
+        }
+        // 设置访问可见性
+        checkField.setAccessible(true);
+
         for (Enum m : constants) {
             try {
-                Object obj = field.get(m);
+                Object obj = checkField.get(m);
                 if (uniqSet.contains(obj)) {
                     return true;
                 } else {
