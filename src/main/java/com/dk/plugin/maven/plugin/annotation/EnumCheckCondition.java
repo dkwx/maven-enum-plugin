@@ -10,7 +10,7 @@ import java.lang.annotation.Target;
  * @date : 2019-12-08 14:29
  */
 @Target(ElementType.TYPE)
-@Retention(RetentionPolicy.CLASS)
+@Retention(RetentionPolicy.RUNTIME)
 public @interface EnumCheckCondition {
     String[] uniqFields();
 }

@@ -1,9 +1,6 @@
-package com.dk.plugin.maven;
+package com.dk.plugin.maven.plugin.enums;
 
-import com.dk.plugin.maven.plugin.annotation.EnumCheckCondition;
-
-@EnumCheckCondition(uniqFields = {"desc"})
-public enum EnumDemo {
+public enum EnumDemo2 {
     Normal(2, "1"),
     Error(2, "1"),
     Error2(1, "1"),
@@ -13,13 +10,13 @@ public enum EnumDemo {
     private int code;
     private String desc;
 
-    EnumDemo(int code, String desc) {
+    EnumDemo2(int code, String desc) {
         this.code = code;
         this.desc = desc;
     }
 
-    public EnumDemo getByCode(int code) {
-        for (EnumDemo enumDemo : EnumDemo.values()) {
+    public EnumDemo2 getByCode(int code) {
+        for (EnumDemo2 enumDemo : EnumDemo2.values()) {
             if (enumDemo.code == code) {
                 return enumDemo;
             }
