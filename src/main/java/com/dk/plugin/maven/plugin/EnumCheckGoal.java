@@ -10,10 +10,12 @@ import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
+import org.apache.maven.project.MavenProject;
 
 import java.io.File;
 import java.io.FileFilter;
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.net.URLDecoder;
@@ -43,15 +45,28 @@ public class EnumCheckGoal extends AbstractMojo {
             defaultValue = "true")
     private boolean checkForceForDefault;
 
+    /**
+     * @parameter expression="${project}"
+     * @required
+     * @readonly
+     */
+    @Parameter(defaultValue = "${project}")
+    private MavenProject project;
+
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
 
         getLog().info("------enum-check-goal-start-----");
         Set<Class> classes = new LinkedHashSet<>();
         try {
-            URL[] urls = new URL[1];
-            urls[0] = new URL("file:" + classPath);
-            URLClassLoader urlClassLoader = new URLClassLoader(urls, Thread.currentThread().getContextClassLoader());
+            List runtimeClasspathElements = project.getRuntimeClasspathElements();
+            URL[] runtimeUrls = new URL[runtimeClasspathElements.size()];
+            for (int i = 0; i < runtimeClasspathElements.size(); i++) {
+                String element = (String) runtimeClasspathElements.get(i);
+                runtimeUrls[i] = new File(element).toURI().toURL();
+            }
+            URLClassLoader urlClassLoader = new URLClassLoader(runtimeUrls,
+                    Thread.currentThread().getContextClassLoader());
             Enumeration<URL> dirs = urlClassLoader.getResources("");
             while (dirs.hasMoreElements()) {
                 URL url = dirs.nextElement();
@@ -152,7 +167,7 @@ public class EnumCheckGoal extends AbstractMojo {
             EnumCheckCondition condition = enumClass.getAnnotation(EnumCheckCondition.class);
             List<String> uniqFieldList = Arrays.asList(condition.uniqFields());
             for (Field field : fields) {
-                if (!field.getType().equals(enumClass) && uniqFieldList.contains(field.getName())) {
+                if (!field.getType().equals(enumClass) && uniqFieldList.contains(field.getName()) && !Modifier.isStatic(field.getModifiers())) {
                     checkFields.add(field);
                 }
             }
@@ -199,7 +214,7 @@ public class EnumCheckGoal extends AbstractMojo {
     private Field getFirstField(Class<Enum> enumClass, Field[] fields) {
         Field checkField = null;
         for (Field field : fields) {
-            if (!field.getType().equals(enumClass)) {
+            if (!field.getType().equals(enumClass) && !Modifier.isStatic(field.getModifiers())) {
                 checkField = field;
                 break;
             }

@@ -14,6 +14,13 @@
             <artifactId>maven-plugin-api</artifactId>
             <version>3.5.0</version>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/org.apache.maven/maven-core -->
+        <dependency>
+            <groupId>org.apache.maven</groupId>
+            <artifactId>maven-core</artifactId>
+            <version>3.5.0</version>
+        </dependency>
+
         <dependency>
             <groupId>org.apache.maven.plugin-tools</groupId>
             <artifactId>maven-plugin-annotations</artifactId>
@@ -32,24 +39,7 @@
                     <target>1.8</target>
                 </configuration>
             </plugin>
-            <plugin>
-                <groupId>com.dk.plugin.maven</groupId>
-                <artifactId>enum-check</artifactId>
-                <version>1.0-SNAPSHOT</version>
-                <configuration>
-                    <!-- 是否默认校验枚举第一个属性必须唯一-->
-                    <checkForceForDefault>true</checkForceForDefault>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>enum-check</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>enum-check-goal</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
+
         </plugins>
     </build>
 </project>
