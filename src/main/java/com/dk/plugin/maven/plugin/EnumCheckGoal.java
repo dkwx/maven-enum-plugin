@@ -86,6 +86,7 @@ public class EnumCheckGoal extends AbstractMojo {
         }
         if (null == checkField) {
             getLog().warn("找不到合适的比较Field");
+            return false;
         }
         // 设置访问可见性
         checkField.setAccessible(true);
@@ -134,15 +135,18 @@ public class EnumCheckGoal extends AbstractMojo {
                 try {
                     // 添加到集合中去 这里用forName有一些不好，会触发static方法，没有使用classLoader的load干净
                     String packageName = "";
+                    String classPath = className;
                     int start = path.indexOf("target/classes") + 15;
                     int end = path.lastIndexOf("/");
                     // 如果end <= start 则表明，类包路径是空
                     if (end > start) {
                         packageName = path.substring(start, end);
+                        packageName = packageName.replace("/", ".");
+                        classPath = packageName + '.' + className;
                     }
-                    packageName = packageName.replace("/", ".");
-                    getLog().info("packageName+className => " + packageName + '.' + className);
-                    Class<?> clazz = classLoader.loadClass(packageName + '.' + className);
+
+                    getLog().info("classPath => " + classPath);
+                    Class<?> clazz = classLoader.loadClass(classPath);
                     getLog().info("clazz is => " + clazz);
                     classes.add(clazz);
                 } catch (Exception e) {
