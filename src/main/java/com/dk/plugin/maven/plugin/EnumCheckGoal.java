@@ -54,7 +54,7 @@ public class EnumCheckGoal extends AbstractMojo {
             // 从集合中取出判断是否是枚举，是否唯一
             for (Class<?> clazz : classes) {
                 if (!clazz.isEnum()) {
-                    return;
+                    continue;
                 }
                 if (isEnumNotSuitRule(clazz)) {
                     errorClass.add(clazz);
@@ -147,7 +147,6 @@ public class EnumCheckGoal extends AbstractMojo {
 
                     getLog().info("classPath => " + classPath);
                     Class<?> clazz = classLoader.loadClass(classPath);
-                    getLog().info("clazz is => " + clazz);
                     classes.add(clazz);
                 } catch (Exception e) {
                     getLog().error(String.format("EnumCheckGoal className:%s,path:%s,error：", className, path), e);

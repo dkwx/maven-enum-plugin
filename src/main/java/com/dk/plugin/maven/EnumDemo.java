@@ -2,7 +2,7 @@ package com.dk.plugin.maven;
 
 
 public enum EnumDemo {
-    Normal(1),
+    Normal(2),
     Error(2);
     private int code;
 
